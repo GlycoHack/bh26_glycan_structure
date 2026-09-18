@@ -927,6 +927,59 @@ correctness one.
 without the flag (431 lines of the STORM output contain `_3-6`), so these have to be excluded
 downstream if they are unwanted.
 
+### Is anything more than bicyclic?
+
+No. In the STORM subset every multicyclic residue has exactly two rings — the 37 above are the
+complete set.
+
+Counting has to separate two different things. A ring **fused or bridged to the backbone** makes
+the sugar itself polycyclic; a ring sitting on a substituent, such as the phenyl of a benzyl
+group, is a separate ring but leaves the sugar core monocyclic. Backbone rings are the backbone
+ring closures plus one per bridging MAP; substituent rings are the `nRing` column of
+`<prefix>mapcode-features.txt`.
+
+```bash
+awk -F'\t' '
+NR==FNR { if (FNR>1) mapring[$1]=$12; next }        # MAP-internal rings
+{ r=$1; g=$2; n=split(r,f,"_"); bb=0; br=0; mr=0
+  for(i=2;i<=n;i++){
+    if (f[i] !~ /\*/ && f[i] ~ /^[0-9?]+-[0-9?]+$/) { bb++; continue }   # backbone ring closure
+    q=index(f[i],"*"); if(q==0) continue
+    m=substr(f[i],q); if (gsub(/\*/,"*",m)>=2) br++                      # bridging MAP
+    if (substr(f[i],q) in mapring) mr += mapring[substr(f[i],q)] }       # ring on a substituent
+  print bb+br"\t"mr"\t"g"\t"r }' \
+  storm-mapcode-features.txt storm-rescode-unique.txt
+```
+
+| Backbone rings | STORM ResCodes | STORM glycans | Full-dataset ResCodes | Full-dataset glycans |
+|---|---|---|---|---|
+| 0 — open-chain, no ring closure | 469 | 4,683 | 3,638 | 9,504 |
+| 1 — ordinary pyranose or furanose | 11,177 | 173,969 | 29,601 | 213,527 |
+| 2 — bicyclic | 37 | 237 | 2,409 | 2,654 |
+| 3 | **0** | **0** | 37 | 45 |
+| 4 | **0** | **0** | 9 | 10 |
+| 5 / 6 / 7 | **0** | **0** | 3 / 2 / 1 | 3 / 2 / 1 |
+| 10 / 11 / 13 | **0** | **0** | 5 / 2 / 4 | 5 / 2 / 4 |
+| **3 or more** | **0** | **0** | **63** | **72** |
+| *column total* | *11,683* | *178,889* | *35,711* | *225,757* |
+
+No STORM residue carries a ring on a substituent either, because none of its 39 MAP codes
+contains a ring (section 9). In the unfiltered dataset 15,483 ResCodes across 22,787 glycans do
+— the benzyl and benzoyl protecting groups of section 8.
+
+So STORM removes the polycyclic material entirely. The largest example it discards has thirteen
+fused backbone rings:
+
+```
+h1da12111211d11d1d11d152d11dzzd11zz11zz11d11211dzz1ee2h-4x_1-4_4-8_7-12_11-15_14-20_…
+```
+
+[`C1[C@H](CC2([C@H]([C@@H]([C@@H]3[C@H]([C@H]([C@@H]([C@@H]4[C@H](C[C@@H]5[C@H](C[C@H](C[C@@H]6[C@H](C[C@@H]7[C@]([C@@H](C[C@@H]8[C@H](CC=CC[C@@H]9[C@H](C=C[C@@H]%10[C@H](C=C[C@@H]%11[C@H](C[C@@H]%12[C@H]([C@@H]([C@@H]%13[C@H](CC=C[C@H](C=C[C@@H](CO)O)O%13)O%12)O)O%11)O%10)O9)O8)O7)O)(O6)C)O5)C)O4)O3)C)O)O2)C)C)O1)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C1%5BC%40H%5D%28CC2%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D3%5BC%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D4%5BC%40H%5D%28C%5BC%40%40H%5D5%5BC%40H%5D%28C%5BC%40H%5D%28C%5BC%40%40H%5D6%5BC%40H%5D%28C%5BC%40%40H%5D7%5BC%40%5D%28%5BC%40%40H%5D%28C%5BC%40%40H%5D8%5BC%40H%5D%28CC%3DCC%5BC%40%40H%5D9%5BC%40H%5D%28C%3DC%5BC%40%40H%5D%2510%5BC%40H%5D%28C%3DC%5BC%40%40H%5D%2511%5BC%40H%5D%28C%5BC%40%40H%5D%2512%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%2513%5BC%40H%5D%28CC%3DC%5BC%40H%5D%28C%3DC%5BC%40%40H%5D%28CO%29O%29O%2513%29O%2512%29O%29O%2511%29O%2510%29O9%29O8%29O7%29O%29%28O6%29C%29O5%29C%29O4%29O3%29C%29O%29O2%29C%29C%29O1%29O&abbr=off&zoom=2)
+
+That is a ladder-frame polyether — fused ether rings with methyl branches and alkene units,
+the skeleton characteristic of the brevetoxins — not a sugar residue at all. It appears in one
+glycan.
+
 ### Summary of candidates
 
 | Criterion | ResCodes | Occurrences | Verdict |
