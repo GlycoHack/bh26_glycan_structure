@@ -15,11 +15,25 @@ and both carry SMILES for every entry, so the structures can be inspected direct
 | [`storm-no-anomeric-residues.txt`](storm-no-anomeric-residues.txt) | Residues with no carbon that could be an anomeric position, so they can never form a glycosidic bond — alditols, anhydro-alditols, glycerol | 235 | 4,490 |
 | [`storm-bicyclic-residues.txt`](storm-bicyclic-residues.txt) | Residues carrying two rings, either from two backbone ring closures or from a modification bridging two backbone carbons | 37 | 237 |
 
-`storm-no-anomeric-residues.smi` and `storm-bicyclic-residues.smi` hold the same structures as
-`<SMILES> <SkeletonCode>`, one per line, ready to paste into
-[CDK Depict](https://www.simolecule.com/cdkdepict/depict.html). All 272 parse with CDK. Note
-that a SkeletonCode labels a backbone, not a residue, so labels repeat — 32 of the 235
-no-anomeric rows are `h2122h`. Use column 1 of the `.txt` files if unique labels are needed.
+### Viewing the structures
+
+Paste any of the `.smi` files into **[CDK Depict](https://www.simolecule.com/cdkdepict/depict.html)**
+to draw the whole set at once. They are `<SMILES> <label>` per line, which is the format that
+tool takes, and all 272 SMILES parse with CDK.
+
+| File | Label | Distinct labels |
+|---|---|---|
+| [`storm-no-anomeric-residues-rescode.smi`](storm-no-anomeric-residues-rescode.smi) | ResCode | 235 of 235 — unique |
+| [`storm-no-anomeric-residues-skeleton.smi`](storm-no-anomeric-residues-skeleton.smi) | SkeletonCode | 84 of 235 — repeats |
+| [`storm-bicyclic-residues-rescode.smi`](storm-bicyclic-residues-rescode.smi) | ResCode | 37 of 37 — unique |
+| [`storm-bicyclic-residues-skeleton.smi`](storm-bicyclic-residues-skeleton.smi) | SkeletonCode | 12 of 37 — repeats |
+
+Prefer the ResCode versions: a SkeletonCode names a backbone, not a residue, so 32 of the 235
+no-anomeric rows all carry the label `h2122h` while being different molecules. The SkeletonCode
+versions are useful when grouping by backbone is what you want.
+
+Individual structures can also be opened directly — every SMILES in the tables below is a link
+to its depiction.
 
 Section 11 covers both in full, with SMILES tables and the reasoning. Two points to weigh before
 excluding anything:
@@ -818,20 +832,20 @@ awk -F'\t' 'NR>1 && $7==0 && $12==0 {print $1}' storm-skeletoncode-features.txt
 
 | ResCode | Glycans | SMILES | Identity |
 |---|---|---|---|
-| `h2122h_2*NCC/3=O` | 1,165 | `C([C@@H]([C@H]([C@@H]([C@@H](CO)O)O)O)NC(C)=O)O` | GlcNAc-ol |
-| `h2112h_2*NCC/3=O` | 1,131 | `C([C@@H]([C@H]([C@H]([C@@H](CO)O)O)O)NC(C)=O)O` | GalNAc-ol |
-| `h2122h` | 801 | `C([C@@H]([C@H]([C@@H]([C@@H](CO)O)O)O)O)O` | Glucitol |
-| `hxh` | 235 | `C(C(CO)O)O` | Glycerol |
-| `h2112h` | 188 | `C([C@@H]([C@H]([C@H]([C@@H](CO)O)O)O)O)O` | Galactitol |
-| `h1122h` | 106 | `C([C@H]([C@H]([C@@H]([C@@H](CO)O)O)O)O)O` | Mannitol |
-| `h1122h_2-5` | 83 | `C([C@@H]1[C@H]([C@@H]([C@@H](CO)O1)O)O)O` | 2,5-anhydro-mannitol |
-| `h2h` | 57 | `C([C@@H](CO)O)O` | Glycerol |
-| `h2122h_2*N` | 56 | `C([C@@H]([C@H]([C@@H]([C@@H](CO)O)O)O)N)O` | Glucosaminitol |
-| `h2122h_1-5_2*NCC/3=O` | 30 | `C1[C@@H]([C@H]([C@@H]([C@@H](CO)O1)O)O)NC(C)=O` | anhydro-GlcNAc-ol |
+| `h2122h_2*NCC/3=O` | 1,165 | [`C([C@@H]([C@H]([C@@H]([C@@H](CO)O)O)O)NC(C)=O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O%29O%29O%29NC%28C%29%3DO%29O%20h2122h_2%2ANCC%2F3%3DO&abbr=off&zoom=2) | GlcNAc-ol |
+| `h2112h_2*NCC/3=O` | 1,131 | [`C([C@@H]([C@H]([C@H]([C@@H](CO)O)O)O)NC(C)=O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28CO%29O%29O%29O%29NC%28C%29%3DO%29O%20h2112h_2%2ANCC%2F3%3DO&abbr=off&zoom=2) | GalNAc-ol |
+| `h2122h` | 801 | [`C([C@@H]([C@H]([C@@H]([C@@H](CO)O)O)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O%29O%29O%29O%29O%20h2122h&abbr=off&zoom=2) | Glucitol |
+| `hxh` | 235 | [`C(C(CO)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28C%28CO%29O%29O%20hxh&abbr=off&zoom=2) | Glycerol |
+| `h2112h` | 188 | [`C([C@@H]([C@H]([C@H]([C@@H](CO)O)O)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28CO%29O%29O%29O%29O%29O%20h2112h&abbr=off&zoom=2) | Galactitol |
+| `h1122h` | 106 | [`C([C@H]([C@H]([C@@H]([C@@H](CO)O)O)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O%29O%29O%29O%29O%20h1122h&abbr=off&zoom=2) | Mannitol |
+| `h1122h_2-5` | 83 | [`C([C@@H]1[C@H]([C@@H]([C@@H](CO)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D1%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O1%29O%29O%29O%20h1122h_2-5&abbr=off&zoom=2) | 2,5-anhydro-mannitol |
+| `h2h` | 57 | [`C([C@@H](CO)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D%28CO%29O%29O%20h2h&abbr=off&zoom=2) | Glycerol |
+| `h2122h_2*N` | 56 | [`C([C@@H]([C@H]([C@@H]([C@@H](CO)O)O)O)N)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O%29O%29O%29N%29O%20h2122h_2%2AN&abbr=off&zoom=2) | Glucosaminitol |
+| `h2122h_1-5_2*NCC/3=O` | 30 | [`C1[C@@H]([C@H]([C@@H]([C@@H](CO)O1)O)O)NC(C)=O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C1%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O1%29O%29O%29NC%28C%29%3DO%20h2122h_1-5_2%2ANCC%2F3%3DO&abbr=off&zoom=2) | anhydro-GlcNAc-ol |
 
 The ring-closed members of this class are the anhydro-alditols: both carbons flanking the ring
 oxygen carry a CH2OH, so neither is an acetal carbon and the ring cannot open into a glycosyl
-donor. `h2122h_2-5` is `C([C@H]1[C@H]([C@@H]([C@@H](CO)O1)O)O)O`, 2,5-anhydro-glucitol.
+donor. `h2122h_2-5` is [`C([C@H]1[C@H]([C@@H]([C@@H](CO)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=C%28%5BC%40H%5D1%5BC%40H%5D%28%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO%29O1%29O%29O%29O%20h2122h_2-5&abbr=off&zoom=2), 2,5-anhydro-glucitol.
 
 **Caveat before applying this.** More than half of the 4,490 occurrences are the two
 N-acetylhexosaminitols, GlcNAc-ol (1,165) and GalNAc-ol (1,131). These are reducing ends of
@@ -848,9 +862,9 @@ for "can this residue form a glycosidic bond", but it is not a defect filter.
 
 | ResCode | Glycans | SMILES |
 |---|---|---|
-| `a1221h-1a_1-5_3-6` | 55 | `[C@@H]1([C@H]([C@H]2[C@@H]([C@H](CO2)O1)O)O)O` |
-| `a2122h-1a_1-5_3-6` | 29 | `[C@H]1([C@@H]([C@@H]2[C@@H]([C@@H](CO2)O1)O)O)O` |
-| `a2112h-1a_1-5_3-6` | 21 | `[C@H]1([C@@H]([C@@H]2[C@H]([C@@H](CO2)O1)O)O)O` |
+| `a1221h-1a_1-5_3-6` | 55 | [`[C@@H]1([C@H]([C@H]2[C@@H]([C@H](CO2)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=%5BC%40%40H%5D1%28%5BC%40H%5D%28%5BC%40H%5D2%5BC%40%40H%5D%28%5BC%40H%5D%28CO2%29O1%29O%29O%29O%20a1221h-1a_1-5_3-6&abbr=off&zoom=2) |
+| `a2122h-1a_1-5_3-6` | 29 | [`[C@H]1([C@@H]([C@@H]2[C@@H]([C@@H](CO2)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=%5BC%40H%5D1%28%5BC%40%40H%5D%28%5BC%40%40H%5D2%5BC%40%40H%5D%28%5BC%40%40H%5D%28CO2%29O1%29O%29O%29O%20a2122h-1a_1-5_3-6&abbr=off&zoom=2) |
+| `a2112h-1a_1-5_3-6` | 21 | [`[C@H]1([C@@H]([C@@H]2[C@H]([C@@H](CO2)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=%5BC%40H%5D1%28%5BC%40%40H%5D%28%5BC%40%40H%5D2%5BC%40H%5D%28%5BC%40%40H%5D%28CO2%29O1%29O%29O%29O%20a2112h-1a_1-5_3-6&abbr=off&zoom=2) |
 | `a2112h-1a_1-5_3-6_2*OSO/3=O/3=O` | 12 | `[C@H]1([C@@H]([C@@H]2[C@H]([C@@H](CO2)O1)OS(O)(=O)=O)O)O` |
 
 **(B) A MAP bridging two backbone carbons** — 29 ResCodes, 108 occurrences. The modification
@@ -858,9 +872,9 @@ carries two `MAPStar` attachment points, so it closes a second ring onto the pyr
 
 | ResCode | Glycans | SMILES |
 |---|---|---|
-| `a2122h-1b_1-5_4-6*OC^XO*/3CO/6=O/3C` | 25 | `[C@@H]1([C@@H]([C@H]([C@H]2[C@@H](COC(O2)(C(O)=O)C)O1)O)O)O` |
-| `a2112h-1b_1-5_4-6*OC^XO*/3CO/6=O/3C` | 22 | `[C@@H]1([C@@H]([C@H]([C@@H]2[C@@H](COC(O2)(C(O)=O)C)O1)O)O)O` |
-| `a2112h-1b_1-5_4-6*OPO*/3O/3=O` | 10 | `[C@@H]1([C@@H]([C@H]([C@@H]2[C@@H](COP(O2)(O)=O)O1)O)O)O` |
+| `a2122h-1b_1-5_4-6*OC^XO*/3CO/6=O/3C` | 25 | [`[C@@H]1([C@@H]([C@H]([C@H]2[C@@H](COC(O2)(C(O)=O)C)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=%5BC%40%40H%5D1%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40H%5D2%5BC%40%40H%5D%28COC%28O2%29%28C%28O%29%3DO%29C%29O1%29O%29O%29O%20a2122h-1b_1-5_4-6%2AOC%5EXO%2A%2F3CO%2F6%3DO%2F3C&abbr=off&zoom=2) |
+| `a2112h-1b_1-5_4-6*OC^XO*/3CO/6=O/3C` | 22 | [`[C@@H]1([C@@H]([C@H]([C@@H]2[C@@H](COC(O2)(C(O)=O)C)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=%5BC%40%40H%5D1%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D2%5BC%40%40H%5D%28COC%28O2%29%28C%28O%29%3DO%29C%29O1%29O%29O%29O%20a2112h-1b_1-5_4-6%2AOC%5EXO%2A%2F3CO%2F6%3DO%2F3C&abbr=off&zoom=2) |
+| `a2112h-1b_1-5_4-6*OPO*/3O/3=O` | 10 | [`[C@@H]1([C@@H]([C@H]([C@@H]2[C@@H](COP(O2)(O)=O)O1)O)O)O`](https://www.simolecule.com/cdkdepict/depict/bow/svg?smi=%5BC%40%40H%5D1%28%5BC%40%40H%5D%28%5BC%40H%5D%28%5BC%40%40H%5D2%5BC%40%40H%5D%28COP%28O2%29%28O%29%3DO%29O1%29O%29O%29O%20a2112h-1b_1-5_4-6%2AOPO%2A%2F3O%2F3%3DO&abbr=off&zoom=2) |
 
 **Caveat.** Unlike the alditols, these still have their anomeric carbon and can form glycosidic
 bonds normally. The (A) group is 3,6-anhydro-hexose — the residue that defines agarose and the
