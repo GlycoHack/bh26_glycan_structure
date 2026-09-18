@@ -1,21 +1,92 @@
-# WURCS → SMILES Batch Conversion and ResCode Extraction
+# Glycan structure filtering: WURCS → SMILES, ResCode analysis, and residue exclusion
 
-Bulk conversion of GlyTouCan WURCS strings to SMILES using `molwurcs.jar`, followed by
-extraction of the residue codes (ResCode), SkeletonCodes and MAP codes contained in the
-WURCS strings.
+BH26 glycan structure work. Starting from 256,453 GlyTouCan WURCS strings, this repository
+converts them to SMILES, filters them with WURCSFilter, decomposes every residue into its
+SkeletonCode and MAP code, classifies those by structural feature, and ends with lists of
+residues that are questionable as glycan building blocks.
+
+## The result: exclusion candidates
+
+Two files are the deliverable of the analysis. Both are restricted to the STORM-filtered subset
+and both carry SMILES for every entry, so the structures can be inspected directly:
+
+| File | What it holds | ResCodes | Occurrences |
+|---|---|---|---|
+| [`storm-no-anomeric-residues.txt`](storm-no-anomeric-residues.txt) | Residues with no carbon that could be an anomeric position, so they can never form a glycosidic bond — alditols, anhydro-alditols, glycerol | 235 | 4,490 |
+| [`storm-bicyclic-residues.txt`](storm-bicyclic-residues.txt) | Residues carrying two rings, either from two backbone ring closures or from a modification bridging two backbone carbons | 37 | 237 |
+
+Section 11 covers both in full, with SMILES tables and the reasoning. Two points to weigh before
+excluding anything:
+
+- Over half of the no-anomeric occurrences are **GlcNAc-ol and GalNAc-ol**, the reduced reducing
+  ends of O-glycans. They are correct data, so this list is a "cannot form a glycosidic bond"
+  rule, not a defect filter.
+- The bicyclic residues **keep their anomeric carbon**. They are 3,6-anhydro-hexose (agarose,
+  carrageenan) and pyruvate acetals (bacterial polysaccharides) — real natural chemistry.
+
+The one residue excludable on structure alone is `a212221122h-1b_1-5_1*N_4*N`, an 11-carbon
+backbone appearing in a single glycan.
+
+## Results at a glance
+
+| | Full dataset | STORM subset |
+|---|---|---|
+| Records | 256,453 | 169,603 (66.1%) |
+| Converted to SMILES | 85,114 (33.2%) | 54,796 (32.3%) |
+| Distinct ResCodes | 35,711 | 11,683 |
+| Distinct SkeletonCodes | 2,585 | 987 |
+| Distinct MAP codes | 2,615 | **39** |
+
+WURCSFilter's STORM set cuts substituent variety by 98.5% and removes every aromatic, lipid and
+macrocyclic modification, along with all backbones containing triple bonds or undefined carbons.
+It barely changes the SMILES conversion rate, because its fuzzy matching still admits the
+incompletely defined structures MolWURCS cannot expand.
+
+## Contents
+
+| Section | Topic |
+|---|---|
+| [1](#1-input-data) | Input data |
+| [2](#2-the-conversion-script) | `convert_wurcs.sh` — the parallel WURCS → SMILES converter |
+| [3](#3-results) | Conversion results and failure analysis |
+| [4](#4-output-files) | Output files |
+| [5](#5-performance) | Performance and parallelism |
+| [6](#6-caveats) | Caveats — SMILES output is not canonical |
+| [7](#7-rescode--skeletoncode--map-code-extraction) | ResCode, SkeletonCode and MAP code extraction |
+| [8](#8-map-code-feature-classification) | MAP code feature classification |
+| [9](#9-wurcsfilter-storm-subset) | WURCSFilter (STORM) subset |
+| [10](#10-skeletoncode-structural-analysis) | SkeletonCode structural analysis |
+| [11](#11-residues-that-cannot-form-a-glycosidic-bond-and-bicyclic-residues) | **Exclusion candidates** |
+| [12](#12-verification-performed) | Verification performed |
+| [13](#13-reproducing-from-scratch) | Reproducing from scratch |
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `convert_wurcs.sh` | WURCS → SMILES in parallel, one JVM per chunk (6 min for 256,453 records) |
+| `analyze_rescode.sh` | ResCode / SkeletonCode / MAP code extraction and classification |
+| `MapFeatures.java` | MAP code structural features, via the framework's `MAPFactory` |
+| `SkeletonFeatures.java` | SkeletonCode structural features, via `CarbonDescriptor` |
+
+## Setup
 
 All paths in this document are relative to the root of this repository.
 
-`molwurcs.jar` is **not tracked** here: it is a 45 MB build artefact of another project and,
-being a zip already, git can neither compress nor delta it. Place the MolWURCS 0.12.2 jar in
-this directory before running anything — build it from
-[glycoinfo/MolWURCS](https://gitlab.com/glycoinfo/molwurcs) with `mvn package`, which writes it
-to `target/molwurcs.jar`. `WURCSFilter.jar` (section 9) is untracked for the same reason. Every
-other file below is committed as-is.
+The two jars are **not tracked** here: both are build artefacts of other projects and, being zip
+archives already, git can neither compress nor delta them. Build each and place it in this
+directory before running anything.
+
+| Jar | Version | Source | Build |
+|---|---|---|---|
+| `molwurcs.jar` | MolWURCS 0.12.2 | [glycoinfo/MolWURCS](https://gitlab.com/glycoinfo/molwurcs) | `mvn package` → `target/molwurcs.jar` |
+| `WURCSFilter.jar` | WURCSFilter 0.6.1 | [glycoinfo/wurcsfilter](https://gitlab.com/glycoinfo/wurcsfilter) | `mvn clean compile assembly:single` → `target/WURCSFilter.jar` |
+
+Every other file below is committed as-is.
 
 - Date of run: 2026-09-18
 - Environment: macOS 26.5.2, 12 CPU cores, 64 GB RAM, OpenJDK 17.0.7 (Temurin)
-- Converter: `molwurcs.jar` (MolWURCS 0.12.2), WURCS parsing per `wurcsframework` 1.3.1
+- WURCS parsing per `wurcsframework` 1.3.1
 
 ---
 
@@ -170,6 +241,9 @@ Derived from `wurcs-smi-id-ok.txt`, i.e. only from glycans that converted to SMI
 | `mapcode-unique.txt` | MAP code, number of glycans, number of distinct ResCodes it appears in | 2,615 | 111 KB |
 | `mapcode-features.txt` | MAP code, counts, and parser-derived structural features (see section 8) | 2,615 | 198 KB |
 | `mapcode-class.txt` | MAP code, feature flags, `primary_class` (see section 8) | 2,615 | 177 KB |
+
+The WURCSFilter subset, the SkeletonCode analysis and the exclusion candidate lists add further
+files; they are listed in sections 9, 10 and 11 respectively.
 
 ResCodes are written without the enclosing square brackets. MAP codes **retain their leading
 `*`**, matching the framework's own representation (`t_strMAP = substring(indexOf("*"))`).
@@ -717,8 +791,11 @@ re-running the extractor.
 
 ## 11. Residues that cannot form a glycosidic bond, and bicyclic residues
 
-Two candidate exclusion criteria, applied to the STORM subset. Both lists carry SMILES,
-generated by feeding a single-residue WURCS (`WURCS=2.0/1,1,0/[<ResCode>]/1/`) through MolWURCS.
+**This section produces the two exclusion candidate lists,
+[`storm-no-anomeric-residues.txt`](storm-no-anomeric-residues.txt) and
+[`storm-bicyclic-residues.txt`](storm-bicyclic-residues.txt).** Both are restricted to the
+STORM-filtered subset, and both carry SMILES for every entry, generated by feeding a
+single-residue WURCS (`WURCS=2.0/1,1,0/[<ResCode>]/1/`) through MolWURCS.
 
 ### No possible anomeric position
 
@@ -828,10 +905,50 @@ already listed.
 
 ## 13. Reproducing from scratch
 
+With `molwurcs.jar` and `WURCSFilter.jar` in place (see Setup), the whole pipeline is five
+commands.
+
 ```bash
-./convert_wurcs.sh                                  # input.txt -> wurcs-smi-id.txt (~6 min)
+# 1. WURCS -> SMILES, all 256,453 records (~6 min)
+./convert_wurcs.sh                                    # input.txt -> wurcs-smi-id.txt
 awk -F'\t' '$3 != ""' wurcs-smi-id.txt > wurcs-smi-id-ok.txt
+
+# 2. ResCode / SkeletonCode / MAP code analysis of the full dataset
+./analyze_rescode.sh wurcs-smi-id-ok.txt
+
+# 3. WURCSFilter, STORM pattern set (~65 s)
+cut -f1,2 wurcs-smi-id.txt \
+  | java -jar WURCSFilter.jar -t storm > wurcsfilter-storm-pass.txt
+
+# 4. Join the passing IDs back onto the conversion results
+awk -F'\t' 'BEGIN{OFS="\t"} NR==FNR {pass[$1]=$2; next} ($1 in pass) {print $1,$2,$3}' \
+  wurcsfilter-storm-pass.txt wurcs-smi-id.txt > wurcs-smi-id-storm.txt
+awk -F'\t' '$3 != ""' wurcs-smi-id-storm.txt > wurcs-smi-id-storm-ok.txt
+
+# 5. Same analysis over the STORM subset
+./analyze_rescode.sh wurcs-smi-id-storm-ok.txt storm-
 ```
 
-Then run the two `awk` blocks in section 7 to regenerate the ResCode, SkeletonCode and MAP
-code files.
+`analyze_rescode.sh` compiles `MapFeatures.java` and `SkeletonFeatures.java` itself and writes
+eight files per run: `rescode-by-id`, `rescode-unique`, `skeletoncode-unique`,
+`skeletoncode-features`, `skeletoncode-class`, `mapcode-unique`, `mapcode-features` and
+`mapcode-class`, each prefixed with the second argument.
+
+The two exclusion candidate lists of section 11 are then:
+
+```bash
+# residues with no possible anomeric position
+awk -F'\t' 'NR>1 && $7==0 && $12==0 {print $1}' storm-skeletoncode-features.txt
+
+# bicyclic residues: two backbone ring closures, or a MAP with two attachment points
+awk -F'\t' '{r=$1; n=split(r,f,"_"); c=0; br=0
+  for(i=2;i<=n;i++){ if (f[i] !~ /\*/ && f[i] ~ /^[0-9?]+-[0-9?]+$/) c++
+    else { q=index(f[i],"*"); if(q){ m=substr(f[i],q); if(gsub(/\*/,"*",m)>=2) br=1 } } }
+  if (c>=2 || br) print $1}' storm-rescode-unique.txt
+```
+
+SMILES for any ResCode comes from a single-residue WURCS:
+
+```bash
+echo 'WURCS=2.0/1,1,0/[h2122h_2-5]/1/' | java -jar molwurcs.jar -i wurcs -o smi -n
+```
