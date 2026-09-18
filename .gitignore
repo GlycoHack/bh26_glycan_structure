@@ -1,0 +1,3 @@
+# Build artefact of another project (MolWURCS 0.12.2), 45 MB and already a zip,
+# so git can neither compress nor delta it. See readme.md section 2 for how to obtain it.
+molwurcs.jar
