@@ -88,6 +88,7 @@ incompletely defined structures MolWURCS cannot expand.
 | `analyze_rescode.sh` | ResCode / SkeletonCode / MAP code extraction and classification |
 | `MapFeatures.java` | MAP code structural features, via the framework's `MAPFactory` |
 | `SkeletonFeatures.java` | SkeletonCode structural features, via `CarbonDescriptor` |
+| `make_exclusion_lists.sh` | The two exclusion candidate lists and their CDK Depict `.smi` files |
 
 ## Setup
 
@@ -954,21 +955,40 @@ eight files per run: `rescode-by-id`, `rescode-unique`, `skeletoncode-unique`,
 `skeletoncode-features`, `skeletoncode-class`, `mapcode-unique`, `mapcode-features` and
 `mapcode-class`, each prefixed with the second argument.
 
-The two exclusion candidate lists of section 11 are then:
-
 ```bash
-# residues with no possible anomeric position
-awk -F'\t' 'NR>1 && $7==0 && $12==0 {print $1}' storm-skeletoncode-features.txt
-
-# bicyclic residues: two backbone ring closures, or a MAP with two attachment points
-awk -F'\t' '{r=$1; n=split(r,f,"_"); c=0; br=0
-  for(i=2;i<=n;i++){ if (f[i] !~ /\*/ && f[i] ~ /^[0-9?]+-[0-9?]+$/) c++
-    else { q=index(f[i],"*"); if(q){ m=substr(f[i],q); if(gsub(/\*/,"*",m)>=2) br=1 } } }
-  if (c>=2 || br) print $1}' storm-rescode-unique.txt
+# 6. The two exclusion candidate lists of section 11, plus their CDK Depict files
+./make_exclusion_lists.sh storm-
 ```
 
-SMILES for any ResCode comes from a single-residue WURCS:
+`make_exclusion_lists.sh` reads `<prefix>skeletoncode-features.txt` and
+`<prefix>rescode-unique.txt` and writes six files: `<prefix>no-anomeric-residues.txt`,
+`<prefix>bicyclic-residues.txt` and the four `.smi` files. It selects the residues by the rules
+of section 11 and renders each one by converting a single-residue WURCS:
 
 ```bash
 echo 'WURCS=2.0/1,1,0/[h2122h_2-5]/1/' | java -jar molwurcs.jar -i wurcs -o smi -n
 ```
+
+### Parameters
+
+| Script | Argument / variable | Default | Meaning |
+|---|---|---|---|
+| `convert_wurcs.sh` | argument 1 | `input.txt` | Input file |
+| | argument 2 | `wurcs-smi-id.txt` | Output file |
+| | `JOBS` | `4` | Parallel JVMs; 4–6 is fastest on 12 cores |
+| | `CHUNK_LINES` | `8000` | Lines per JVM invocation |
+| | `ONLY_SUCCESS` | `0` | `1` drops rows that failed to convert |
+| `analyze_rescode.sh` | argument 1 | *(required)* | An `ID/WURCS/SMILES` file |
+| | argument 2 | *(none)* | Prefix for the eight output files |
+| `make_exclusion_lists.sh` | argument 1 | *(none)* | Prefix, matching the one used above |
+| `WURCSFilter.jar` | `-t` | `snfg` | `storm` for the microbial pattern set |
+
+### What is reproducible and what is not
+
+Everything except the exact SMILES strings. MolWURCS output is not canonical (section 6), so a
+re-run yields the same molecules written with a different atom order. Row selection, row counts
+and every code column are deterministic. In practice the single-residue SMILES of the exclusion
+lists came back byte-identical across runs, but that is not guaranteed.
+
+The two jars are not tracked (see Setup) and must be built first. Everything else needed —
+`input.txt`, all outputs, and all four scripts — is in this repository.
