@@ -1,3 +1,11 @@
-# Build artefact of another project (MolWURCS 0.12.2), 45 MB and already a zip,
-# so git can neither compress nor delta it. See readme.md section 2 for how to obtain it.
+# Build artefacts of other projects. Both are already zip archives, so git can
+# neither compress nor delta them. See readme.md for how to obtain each.
+
+# MolWURCS 0.12.2 -- gitlab.com/glycoinfo/molwurcs
 molwurcs.jar
+
+# WURCSFilter 0.6.1 -- gitlab.com/glycoinfo/wurcsfilter
+WURCSFilter.jar
+
+# Compiled from MapFeatures.java by analyze_rescode.sh
+MapFeatures.class

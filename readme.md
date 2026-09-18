@@ -10,7 +10,8 @@ All paths in this document are relative to the root of this repository.
 being a zip already, git can neither compress nor delta it. Place the MolWURCS 0.12.2 jar in
 this directory before running anything — build it from
 [glycoinfo/MolWURCS](https://gitlab.com/glycoinfo/molwurcs) with `mvn package`, which writes it
-to `target/molwurcs.jar`. Every other file below is committed as-is.
+to `target/molwurcs.jar`. `WURCSFilter.jar` (section 9) is untracked for the same reason. Every
+other file below is committed as-is.
 
 - Date of run: 2026-09-18
 - Environment: macOS 26.5.2, 12 CPU cores, 64 GB RAM, OpenJDK 17.0.7 (Temurin)
@@ -464,7 +465,138 @@ plus one 2-atom artefact.
 
 ---
 
-## 9. Verification performed
+## 9. WURCSFilter (STORM) subset
+
+The same analysis, restricted to WURCS that pass
+[WURCSFilter](https://gitlab.com/glycoinfo/wurcsfilter) 0.6.1 with the **STORM** predefined
+pattern set.
+
+```bash
+git clone https://gitlab.com/glycoinfo/wurcsfilter.git
+cd wurcsfilter && mvn clean compile assembly:single   # -> target/WURCSFilter.jar
+```
+
+WURCSFilter takes `Title<TAB>WURCS` on stdin and writes the passing lines in the same format.
+`wurcs-smi-id.txt` already holds `ID<TAB>WURCS` in its first two columns:
+
+```bash
+cut -f1,2 wurcs-smi-id.txt \
+  | java -jar WURCSFilter.jar -t storm > wurcsfilter-storm-pass.txt   # 65 s
+```
+
+STORM keeps structures built from a microbial-oriented dictionary (hexoses, pentoses, heptoses,
+ulosonic acids, branched and small monosaccharides) and enables fuzzy matching. The default
+`snfg` set is much stricter; both were run, for comparison.
+
+| Predefined set | Passed | of 256,453 |
+|---|---|---|
+| `storm` | 169,603 | 66.1% |
+| `snfg` (default) | 70,136 | 27.3% |
+
+### How the subset was built
+
+The passing IDs were joined back onto the existing conversion results rather than re-running
+MolWURCS. This is deliberate: filtering selects a subset of the same WURCS strings, and reusing
+the conversion keeps the two analyses **directly comparable**, whereas a re-run would emit
+different SMILES strings for the same molecules (see section 6). GlyTouCan IDs are unique across
+all 256,453 records, so the join is exact; it matched all 169,603 IDs with zero WURCS mismatches.
+
+```bash
+awk -F'\t' 'BEGIN{OFS="\t"} NR==FNR {pass[$1]=$2; next} ($1 in pass) {print $1,$2,$3}' \
+  wurcsfilter-storm-pass.txt wurcs-smi-id.txt > wurcs-smi-id-storm.txt
+awk -F'\t' '$3 != ""' wurcs-smi-id-storm.txt > wurcs-smi-id-storm-ok.txt
+./analyze_rescode.sh wurcs-smi-id-storm-ok.txt storm-
+```
+
+`analyze_rescode.sh` packages the extraction and classification steps of sections 7 and 8 so
+they can be re-run on any `ID/WURCS/SMILES` file:
+
+```bash
+./analyze_rescode.sh <input file> [output prefix]
+```
+
+### Files
+
+| File | Description | Rows |
+|---|---|---|
+| `wurcsfilter-storm-pass.txt` | ID, WURCS — passed the STORM filter | 169,603 |
+| `wurcsfilter-snfg-pass.txt` | ID, WURCS — passed the default SNFG filter | 70,136 |
+| `wurcs-smi-id-storm.txt` | ID, WURCS, SMILES — STORM subset, empty SMILES where conversion failed | 169,603 |
+| `wurcs-smi-id-storm-ok.txt` | ID, WURCS, SMILES — STORM subset, converted only | 54,796 |
+| `storm-rescode-by-id.txt` | ID, ResCode | 178,889 |
+| `storm-rescode-unique.txt` | ResCode, glycan count | 11,683 |
+| `storm-skeletoncode-unique.txt` | SkeletonCode, glycan count, distinct ResCodes | 987 |
+| `storm-mapcode-unique.txt` | MAP code, glycan count, distinct ResCodes | 39 |
+| `storm-mapcode-features.txt` | Structural features per MAP code | 39 |
+| `storm-mapcode-class.txt` | Feature flags and `primary_class` per MAP code | 39 |
+| `analyze_rescode.sh` | The extraction and classification pipeline | — |
+
+### Comparison
+
+| | Full dataset | STORM subset |
+|---|---|---|
+| Records | 256,453 | 169,603 |
+| Converted to SMILES | 85,114 (33.2%) | 54,796 (32.3%) |
+| ResCode occurrences | 225,757 | 178,889 |
+| Distinct ResCodes | 35,711 | 11,683 |
+| Distinct SkeletonCodes | 2,585 | 987 |
+| **Distinct MAP codes** | **2,615** | **39** |
+
+Two results stand out.
+
+**The filter barely changes the SMILES conversion rate** — 32.3% against 33.2%. Passing the
+STORM filter is not a predictor of being convertible to an atomic structure, because STORM
+enables fuzzy matching and so admits the very patterns MolWURCS cannot expand: unknown anomeric
+configuration, unknown carbon descriptors, unresolved linkage positions.
+
+**The substituent variety collapses, from 2,615 MAP codes to 39.** The distinct ResCode count
+falls by 67% and SkeletonCodes by 62%, but MAP codes fall by 98.5%. The surviving 39 are all
+ordinary biological modifications:
+
+| MAP code | Glycans | Modification |
+|---|---|---|
+| `*NCC/3=O` | 51,979 | N-acetyl |
+| `*OCC/3=O` | 14,755 | O-acetyl |
+| `*OC` | 7,980 | O-methyl |
+| `*OSO/3=O/3=O` | 7,452 | Sulfate |
+| `*N` | 5,722 | Amino |
+| `*OPO/3O/3=O` | 2,084 | Phosphate |
+| `*NCCO/3=O` | 1,446 | N-glycolyl |
+| `*NSO/3=O/3=O` | 1,073 | N-sulfate |
+| `*F` | 1,057 | Fluoro |
+| `*OC^XO*/3CO/6=O/3C` | 88 | Pyruvate acetal (bridges two positions) |
+
+The feature classification makes the same point from the other side. Every STORM MAP code falls
+into just five classes:
+
+| primary_class | Codes | Glycan occurrences |
+|---|---|---|
+| `acyl_short` | 13 | 68,623 |
+| `simple` | 13 | 14,770 |
+| `sulfate` | 6 | 8,954 |
+| `phosphate` | 4 | 2,157 |
+| `halogen` | 3 | 1,597 |
+
+**`aromatic`, `lipid`, `macrocycle`, `alicyclic` and `multi_acyl` are all empty.** In the full
+dataset those accounted for 1,419, 333, 112, 217 and 46 codes respectively — the benzyl and
+benzoyl protecting groups, fatty acyl chains and macrolactones of section 8. The STORM
+dictionary excludes them, which is the clearest single statement of what the filter does: it
+separates naturally-occurring glycan chemistry from synthetic and exotic chemistry.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| ID join between the filter output and `wurcs-smi-id.txt` | all 169,603 matched, 0 WURCS mismatches |
+| GlyTouCan ID uniqueness (join safety) | 256,453 records, 256,453 distinct IDs, 0 duplicates |
+| Extracted ResCodes vs WURCS header unique-counts | 178,889 = 178,889, 0 mismatched rows |
+| SkeletonCode totals vs ResCode occurrences | 178,889 = 178,889 |
+| MAP codes parsed by `MAPFactory` | all 39, zero errors |
+| `analyze_rescode.sh` against the section 7–8 results | reproduces all six unfiltered files byte-identically |
+
+---
+
+## 10. Verification performed
 
 | Check | Result |
 |---|---|
@@ -485,7 +617,7 @@ plus one 2-atom artefact.
 
 ---
 
-## 10. Reproducing from scratch
+## 11. Reproducing from scratch
 
 ```bash
 ./convert_wurcs.sh                                  # input.txt -> wurcs-smi-id.txt (~6 min)
