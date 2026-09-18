@@ -593,10 +593,127 @@ separates naturally-occurring glycan chemistry from synthetic and exotic chemist
 | SkeletonCode totals vs ResCode occurrences | 178,889 = 178,889 |
 | MAP codes parsed by `MAPFactory` | all 39, zero errors |
 | `analyze_rescode.sh` against the section 7–8 results | reproduces all six unfiltered files byte-identically |
+| All 987 STORM SkeletonCodes resolved by `CarbonDescriptor` | zero unknown characters |
+| `SkeletonFeatures.java` against known sugars — Glc, Gal, Man, Fuc, Neu5Ac, GlcA | carbon counts, terminal types, deoxy and acid counts all correct |
+| `analyze_rescode.sh` with the SkeletonCode step added | reproduces all eight STORM files byte-identically |
 
 ---
 
-## 10. Verification performed
+## 10. SkeletonCode structural analysis
+
+Section 9 showed that STORM cleans up the substituents (MAP codes) very effectively. This
+section does the equivalent for the monosaccharide backbones, to find SkeletonCodes that remain
+after filtering but are questionable as glycan residues.
+
+A SkeletonCode is one character per backbone carbon, each a `CarbonDescriptor`. The same
+character means different things at a terminal and a non-terminal position — `d` is `-CH2-` in
+the middle of a chain while `m` is a terminal `-CH3` — so `SkeletonFeatures.java` resolves every
+character through the framework's own `CarbonDescriptor.forCharacter(c, isTerminal)` rather than
+matching on the text.
+
+```bash
+javac -cp molwurcs.jar SkeletonFeatures.java
+cut -f1 storm-skeletoncode-unique.txt | java -cp molwurcs.jar:. SkeletonFeatures
+```
+
+Both are produced by `analyze_rescode.sh`:
+
+| File | Description | Rows |
+|---|---|---|
+| `storm-skeletoncode-features.txt` | Per code: carbon count, first/last carbon type, counts of anomeric, defined/unknown stereocentres, deoxy, undefined, carbonyl, acid, double and triple bonds | 987 |
+| `storm-skeletoncode-class.txt` | Feature flags and `primary_class` | 987 |
+| `skeletoncode-features.txt`, `skeletoncode-class.txt` | The same for the unfiltered dataset | 2,585 |
+| `SkeletonFeatures.java` | The extractor | — |
+
+All 987 STORM SkeletonCodes resolved without an unknown character.
+
+### Classes
+
+| Class | Rule | Chemistry |
+|---|---|---|
+| `oversized` | more than 9 carbons | beyond the C3–C9 range of monosaccharides |
+| `unsaturated` | a C=C in the backbone | e.g. Δ4,5-unsaturated uronic acid |
+| `open_chain` | first carbon is an aldehyde | open-form aldose, no ring |
+| `polyol` | no anomeric carbon, no carbonyl, terminal CH2OH | alditol / sugar alcohol |
+| `undersized` | fewer than 5 carbons | triose, tetrose |
+| `no_anomeric_other` | no anomeric carbon, not covered above | open-chain aldonic acid, open-form ketose |
+| `standard` | none of the above | ring monosaccharide with an anomeric carbon |
+
+### Distribution
+
+| primary_class | Codes | Glycan occurrences |
+|---|---|---|
+| `standard` | 738 | 173,737 |
+| `polyol` | 36 | 4,324 |
+| `open_chain` | 109 | 294 |
+| `unsaturated` | 4 | 203 |
+| `no_anomeric_other` | 72 | 181 |
+| `undersized` | 27 | 149 |
+| `oversized` | 1 | 1 |
+
+`standard` covers 97.1% of ResCode occurrences and spans C5–C9 (457 of its codes are hexoses,
+103 are nonoses — the sialic acid family). Everything questionable is in the remaining 249
+codes, which together account for 5,152 occurrences, under 3%.
+
+### STORM already removed most of the anomalies
+
+| Class | Full dataset | STORM | Removed |
+|---|---|---|---|
+| `standard` | 1,206 | 738 | 468 |
+| `no_anomeric_other` | 408 | 72 | 336 |
+| `unsaturated` | 266 | 4 | 262 |
+| `undersized` | 209 | 27 | 182 |
+| **`oversized`** | **165** | **1** | **164** |
+| `polyol` | 154 | 36 | 118 |
+| `open_chain` | 177 | 109 | 68 |
+
+The unfiltered dataset also contains backbones with triple bonds (`11zz` and similar) and
+undefined carbons (`u`, `U`, `Q`); **STORM leaves none of either**. The one over-long backbone it
+does keep is `a212221122h`, an 11-carbon chain appearing in a single glycan.
+
+### What is actually questionable
+
+Not every class here is an error, and the largest ones are legitimate. Judgement is needed
+before excluding anything:
+
+**Legitimate — do not exclude.** The four `unsaturated` codes are `a21eEA`, `a11eEA`, `a12eEA`
+and `a22eEA`: C6, anomeric, terminal COOH, with a double bond between C4 and C5. That is
+Δ4,5-unsaturated uronic acid, the standard product of a glycosaminoglycan lyase digest, and its
+presence is evidence of how the sample was prepared rather than a defect.
+
+`open_chain` and `no_anomeric_other` are open-form representations of ordinary sugars —
+`o2122h` is open-chain glucose, `A2122h` gluconic acid, `hO122h` an open-form ketose,
+`AOd21122h` an open-chain ulosonic acid. They are correct descriptions of real molecules; they
+simply are not ring forms.
+
+**Judgement call.** The `polyol` class is the largest questionable group: `h2122h` (2,125
+glycans) is glucitol, `h2112h` (1,349) galactitol, `h1122h` (216) mannitol. These are reduced
+ends produced deliberately during glycan analysis. They are sugar alcohols, not monosaccharides,
+so whether they belong depends on whether reduced glycans are in scope.
+
+**Weakest as residues.** Within `polyol`, `h2h` and `hxh` (C3, 319 glycans between them) are
+glycerol, and in `undersized` `hOh` is dihydroxyacetone — small polyols rather than sugars,
+though glycerol is a genuine component of GPI anchors and glycoglycerolipids. The single
+`oversized` code `a212221122h` is the clearest candidate for exclusion on structure alone.
+
+### Suggested filter
+
+If the goal is to keep only ring monosaccharides, the `standard` class is the criterion, and it
+is one `awk` away:
+
+```bash
+awk -F'\t' 'NR>1 && $3=="standard" {print $1}' storm-skeletoncode-class.txt > keep-skeletons.txt
+```
+
+That retains 738 codes and 173,737 of 178,889 occurrences. Relaxing it to also keep
+`unsaturated` — recommended, since those are real GAG residues — adds 4 codes and 203
+occurrences. The raw measurements are in `storm-skeletoncode-features.txt`, so any other cut
+(for example C5–C9 only, or requiring a defined anomeric configuration) can be made without
+re-running the extractor.
+
+---
+
+## 11. Verification performed
 
 | Check | Result |
 |---|---|
@@ -617,7 +734,7 @@ separates naturally-occurring glycan chemistry from synthetic and exotic chemist
 
 ---
 
-## 11. Reproducing from scratch
+## 12. Reproducing from scratch
 
 ```bash
 ./convert_wurcs.sh                                  # input.txt -> wurcs-smi-id.txt (~6 min)

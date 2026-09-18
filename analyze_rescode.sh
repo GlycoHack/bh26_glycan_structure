@@ -17,15 +17,20 @@ JAR_PATH="./molwurcs.jar"
 TMP_SC=$(mktemp "${TMPDIR:-/tmp}/_sc.XXXXXX")
 TMP_MP=$(mktemp "${TMPDIR:-/tmp}/_mp.XXXXXX")
 TMP_FEAT=$(mktemp "${TMPDIR:-/tmp}/_feat.XXXXXX")
-trap 'rm -f "$TMP_SC" "$TMP_MP" "$TMP_FEAT"' EXIT
+TMP_SKEL=$(mktemp "${TMPDIR:-/tmp}/_skel.XXXXXX")
+trap 'rm -f "$TMP_SC" "$TMP_MP" "$TMP_FEAT" "$TMP_SKEL"' EXIT
 
 [ -f "$IN" ]       || { echo "ERROR: $IN not found" >&2; exit 1; }
 [ -f "$JAR_PATH" ] || { echo "ERROR: $JAR_PATH not found" >&2; exit 1; }
 [ -f MapFeatures.java ] || { echo "ERROR: MapFeatures.java not found" >&2; exit 1; }
+[ -f SkeletonFeatures.java ] || { echo "ERROR: SkeletonFeatures.java not found" >&2; exit 1; }
 
 # MapFeatures をビルド (クラスが入力より古ければ作り直す)
 if [ ! -f MapFeatures.class ] || [ MapFeatures.java -nt MapFeatures.class ]; then
     javac -cp "$JAR_PATH" MapFeatures.java || exit 1
+fi
+if [ ! -f SkeletonFeatures.class ] || [ SkeletonFeatures.java -nt SkeletonFeatures.class ]; then
+    javac -cp "$JAR_PATH" SkeletonFeatures.java || exit 1
 fi
 
 # 1) ResCode: WURCS の [...] を取り出す。ResCode 内に / と * が出るため / では分割できない。
@@ -98,6 +103,35 @@ NR==1 { print "map","glycans","primary_class","aromatic","lipid","multi_acyl","a
   else            c="simple"
   print map,g,c,arom?1:0,lip?1:0,multi?1:0,alic?1:0,macro?1:0,sul?1:0,pho?1:0,hal?1:0,acyl?1:0,maxr,chain,at
 }' "${PRE}mapcode-features.txt" > "${PRE}mapcode-class.txt"
+
+# 5) SkeletonCode の特徴量と分類
+#    1文字 = 骨格炭素1個 (CarbonDescriptor)。先頭と末尾は terminal、それ以外は
+#    non-terminal として解釈される (同じ文字でも意味が変わる)。
+cut -f1 "${PRE}skeletoncode-unique.txt" | java -cp "$JAR_PATH:." SkeletonFeatures 2>/dev/null > "$TMP_SKEL"
+NBADS=$(tail -n +2 "$TMP_SKEL" | awk -F'\t' '$2!="OK"' | wc -l | tr -d ' ')
+[ "$NBADS" -gt 0 ] && echo "WARNING: $NBADS SkeletonCodes contain unknown characters" >&2
+{ printf 'skeleton\tglycans\trescodes\tnC\tfirst\tlast\tnAnomer\tnStereoDef\tnStereoUnk\tnDeoxy\tnUndef\tnCarbonyl\tnAcid\tnDouble\tnTriple\tnSP3\tnSP2\tnSP\tnSPX\tunknownChars\n'
+  paste -d'\t' <(tail -n +2 "$TMP_SKEL" | cut -f1) \
+               <(cut -f2,3 "${PRE}skeletoncode-unique.txt") \
+               <(tail -n +2 "$TMP_SKEL" | cut -f3-19)
+} > "${PRE}skeletoncode-features.txt"
+
+awk -F'\t' 'BEGIN{OFS="\t"}
+NR==1 { print "skeleton","glycans","primary_class","oversized","unsaturated","open_chain","polyol","undersized","no_anomeric","unknown_stereo","nC","first","last"; next }
+{
+  sk=$1; g=$2; nC=$4; first=$5; last=$6; nAnom=$7; nStUnk=$9; nCarbonyl=$12; nDbl=$14
+  over=(nC>9); unsat=(nDbl>0); open=(first=="SZ2_ALDEHYDE")
+  poly=(nAnom==0 && nCarbonyl==0 && first=="SZ3_HYDROXYL")
+  under=(nC<5); noano=(nAnom==0); unkst=(nStUnk>0)
+  if      (over)  c="oversized"
+  else if (unsat) c="unsaturated"
+  else if (open)  c="open_chain"
+  else if (poly)  c="polyol"
+  else if (under) c="undersized"
+  else if (noano) c="no_anomeric_other"
+  else            c="standard"
+  print sk,g,c,over?1:0,unsat?1:0,open?1:0,poly?1:0,under?1:0,noano?1:0,unkst?1:0,nC,first,last
+}' "${PRE}skeletoncode-features.txt" > "${PRE}skeletoncode-class.txt"
 
 echo "Done. Input: $IN"
 printf "  %-34s %s\n" \

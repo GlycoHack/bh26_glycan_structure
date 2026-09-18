@@ -7,5 +7,5 @@ molwurcs.jar
 # WURCSFilter 0.6.1 -- gitlab.com/glycoinfo/wurcsfilter
 WURCSFilter.jar
 
-# Compiled from MapFeatures.java by analyze_rescode.sh
-MapFeatures.class
+# Compiled from the .java sources by analyze_rescode.sh
+*.class
