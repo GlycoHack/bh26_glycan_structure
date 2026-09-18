@@ -15,6 +15,12 @@ and both carry SMILES for every entry, so the structures can be inspected direct
 | [`storm-no-anomeric-residues.txt`](storm-no-anomeric-residues.txt) | Residues with no carbon that could be an anomeric position, so they can never form a glycosidic bond — alditols, anhydro-alditols, glycerol | 235 | 4,490 |
 | [`storm-bicyclic-residues.txt`](storm-bicyclic-residues.txt) | Residues carrying two rings, either from two backbone ring closures or from a modification bridging two backbone carbons | 37 | 237 |
 
+`storm-no-anomeric-residues.smi` and `storm-bicyclic-residues.smi` hold the same structures as
+`<SMILES> <SkeletonCode>`, one per line, ready to paste into
+[CDK Depict](https://www.simolecule.com/cdkdepict/depict.html). All 272 parse with CDK. Note
+that a SkeletonCode labels a backbone, not a residue, so labels repeat — 32 of the 235
+no-anomeric rows are `h2122h`. Use column 1 of the `.txt` files if unique labels are needed.
+
 Section 11 covers both in full, with SMILES tables and the reasoning. Two points to weigh before
 excluding anything:
 
